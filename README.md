@@ -1,5 +1,5 @@
 # embedded-writeable
-Programs that store data inside of its binary
+Programs that store data inside its binary
 
 Both of the below programs save data by recompiling itself, meaning you need go installed on your system((
 
