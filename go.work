@@ -1,6 +1,7 @@
-go 1.18
+go 1.20
 
 use (
+	./compile/simple
+	./compile/sqlite
 	./simple
-	./sqlite
 )
