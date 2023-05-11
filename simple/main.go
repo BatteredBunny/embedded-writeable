@@ -1,65 +1,93 @@
 package main
 
 import (
-	"embed"
+	"bytes"
+	"flag"
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
-	"os/exec"
-	"path"
-	"time"
 )
 
-var LastDate string
-var LastTime string
+const dataSignifier = "uwunya"
 
-//go:embed *
-var fsdir embed.FS
+type FileWrapper struct {
+	bs []byte
+}
 
-func CopyEmbedToTemp(fs embed.FS, tempdir string) {
-	files, err := fs.ReadDir(".")
+func newFileWrapper(fileName string) (f FileWrapper, err error) {
+	var bs []byte
+	bs, err = os.ReadFile(fileName)
 	if err != nil {
-		log.Fatal(err)
+		return
 	}
 
-	for _, file := range files {
-		var data []byte
-		data, err = fsdir.ReadFile(file.Name())
-		if err != nil {
-			log.Panic(err)
-		}
+	f = FileWrapper{bs: bs}
+	return
+}
 
-		if err = os.WriteFile(path.Join(tempdir, file.Name()), data, 0600); err != nil {
-			log.Panic(err)
-		}
+func (f FileWrapper) containsSignifier() bool {
+	return bytes.Contains(f.bs, []byte(dataSignifier))
+}
+
+func (f FileWrapper) getData() []byte {
+	if !f.containsSignifier() {
+		return []byte{}
+	}
+
+	split := bytes.Split(f.bs, []byte(dataSignifier))
+
+	if len(split) <= 2 {
+		return []byte{}
+	} else {
+		return split[2]
 	}
 }
 
+func (f *FileWrapper) addData(data string) {
+	f.bs = append(f.bs, dataSignifier+data...)
+}
+
+func (f *FileWrapper) setData(data string) {
+	if f.containsSignifier() {
+		dataWithSignifier := append([]byte(dataSignifier), f.getData()...)
+		f.bs, _ = bytes.CutSuffix(f.bs, dataWithSignifier)
+	}
+
+	f.addData(data)
+}
+
+func (f FileWrapper) writeFile(fileName string, perm fs.FileMode) error {
+	return os.WriteFile(fileName, f.bs, perm)
+}
+
 func main() {
-	tempdir, err := os.MkdirTemp("", "*")
+	data := flag.String("data", "", "data to add at end of binary")
+	flag.Parse()
+
+	fileName := os.Args[0]
+	f, err := newFileWrapper(fileName)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer os.RemoveAll(tempdir)
 
-	CopyEmbedToTemp(fsdir, tempdir)
+	if *data != "" {
+		info, err := os.Stat(fileName)
+		if err != nil {
+			log.Fatal(err)
+		}
 
-	if LastDate == "" || LastTime == "" {
-		fmt.Println("This is the first time you ran me!")
-	} else {
-		fmt.Println("Last ran at:", LastDate, LastTime)
+		f.setData(*data)
+
+		if err = os.Remove(fileName); err != nil {
+			log.Fatal(err)
+		}
+
+		if err := f.writeFile(fileName, info.Mode()); err != nil {
+			log.Fatal(err)
+		}
 	}
 
-	now := time.Now()
-	command := fmt.Sprintf(
-		"go build -ldflags '-X main.LastDate=%s -X main.LastTime=%s' -o %s %s/*.go",
-		now.Format("2006/01/01"),
-		now.Format("15:04:05"),
-		os.Args[0], // Replaces currently ran binary with the new one
-		tempdir,
-	)
-
-	if err = exec.Command("sh", "-c", command).Run(); err != nil {
-		log.Println(err)
-	}
+	fmt.Println("Data:")
+	fmt.Println(string(f.getData()))
 }

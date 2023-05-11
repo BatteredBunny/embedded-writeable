@@ -1,3 +1,3 @@
-module simple
+module github.com/ayes-web/embedded-writeable/simple
 
-go 1.18
+go 1.20
