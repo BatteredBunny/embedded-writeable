@@ -1,3 +1,3 @@
-module github.com/ayes-web/embedded-writeable/simple
+module github.com/BatteredBunny/embedded-writeable/simple
 
-go 1.20
+go 1.21
